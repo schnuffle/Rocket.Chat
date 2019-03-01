@@ -19,4 +19,5 @@ Package.onUse(function(api) {
 
 	api.mainModule('client/index.js', 'client');
 	api.mainModule('server/index.js', 'server');
+	api.addFiles('server/methods/jitsiGenerateToken.js', 'server');
 });
