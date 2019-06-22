@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+
 import {
 	getCredentials,
 	api,
@@ -324,7 +325,6 @@ describe('[Users]', function() {
 					userCredentials['X-User-Id'] = res.body.data.userId;
 				})
 				.end(done);
-
 		});
 		before((done) => {
 			updatePermission('edit-other-user-info', ['admin', 'user']).then(done);
@@ -966,8 +966,8 @@ describe('[Users]', function() {
 				.set(credentials)
 				.send({ username: user.username })
 				.expect('Content-Type', 'application/json')
-				.end((err, res) => (err ? done() :
-					request.get(api('me'))
+				.end((err, res) => (err ? done()
+					: request.get(api('me'))
 						.set({ 'X-Auth-Token': `${ res.body.data.authToken }`, 'X-User-Id': res.body.data.userId })
 						.expect(200)
 						.expect((res) => {
@@ -1112,7 +1112,6 @@ describe('[Users]', function() {
 				})
 				.end(done);
 		});
-
 	});
 
 	describe('[/users.deleteOwnAccount]', () => {
@@ -1164,6 +1163,7 @@ describe('[Users]', function() {
 		});
 
 		it('should delete user own account', (done) => {
+			browser.pause(500);
 			request.post(api('users.deleteOwnAccount'))
 				.set(userCredentials)
 				.send({
@@ -1176,7 +1176,6 @@ describe('[Users]', function() {
 				})
 				.end(done);
 		});
-
 	});
 
 	describe('[/users.delete]', () => {
@@ -1431,6 +1430,122 @@ describe('[Users]', function() {
 						})
 						.end(done);
 				});
+			});
+		});
+	});
+
+	describe('[/users.setActiveStatus]', () => {
+		let user;
+		before((done) => {
+			const username = `user.test.${ Date.now() }`;
+			const email = `${ username }@rocket.chat`;
+			request.post(api('users.create'))
+				.set(credentials)
+				.send({ email, name: username, username, password })
+				.end((err, res) => {
+					user = res.body.user;
+					done();
+				});
+		});
+		let userCredentials;
+		before((done) => {
+			request.post(api('login'))
+				.send({
+					user: user.username,
+					password,
+				})
+				.expect('Content-Type', 'application/json')
+				.expect(200)
+				.expect((res) => {
+					userCredentials = {};
+					userCredentials['X-Auth-Token'] = res.body.data.authToken;
+					userCredentials['X-User-Id'] = res.body.data.userId;
+				})
+				.end(done);
+		});
+		before((done) => {
+			updatePermission('edit-other-user-active-status', ['admin', 'user']).then(done);
+		});
+		after((done) => {
+			request.post(api('users.delete')).set(credentials).send({
+				userId: user._id,
+			}).end(() => updatePermission('edit-other-user-active-status', ['admin']).then(done));
+			user = undefined;
+		});
+		it('should set other user active status to false when the logged user has the necessary permission(edit-other-user-active-status)', (done) => {
+			request.post(api('users.setActiveStatus'))
+				.set(userCredentials)
+				.send({
+					activeStatus: false,
+					userId: targetUser._id,
+				})
+				.expect('Content-Type', 'application/json')
+				.expect(200)
+				.expect((res) => {
+					expect(res.body).to.have.property('success', true);
+					expect(res.body).to.have.nested.property('user.active', false);
+				})
+				.end(done);
+		});
+		it('should set other user active status to true when the logged user has the necessary permission(edit-other-user-active-status)', (done) => {
+			request.post(api('users.setActiveStatus'))
+				.set(userCredentials)
+				.send({
+					activeStatus: true,
+					userId: targetUser._id,
+				})
+				.expect('Content-Type', 'application/json')
+				.expect(200)
+				.expect((res) => {
+					expect(res.body).to.have.property('success', true);
+					expect(res.body).to.have.nested.property('user.active', true);
+				})
+				.end(done);
+		});
+		it('should return an error when trying to set other user active status and has not the necessary permission(edit-other-user-active-status)', (done) => {
+			updatePermission('edit-other-user-active-status', []).then(() => {
+				request.post(api('users.setActiveStatus'))
+					.set(userCredentials)
+					.send({
+						activeStatus: false,
+						userId: targetUser._id,
+					})
+					.expect('Content-Type', 'application/json')
+					.expect(403)
+					.expect((res) => {
+						expect(res.body).to.have.property('success', false);
+					})
+					.end(done);
+			});
+		});
+		it('should return an error when trying to set user own active status and has not the necessary permission(edit-other-user-active-status)', (done) => {
+			request.post(api('users.setActiveStatus'))
+				.set(userCredentials)
+				.send({
+					activeStatus: false,
+					userId: user._id,
+				})
+				.expect('Content-Type', 'application/json')
+				.expect(403)
+				.expect((res) => {
+					expect(res.body).to.have.property('success', false);
+				})
+				.end(done);
+		});
+		it('should set user own active status to false when the user has the necessary permission(edit-other-user-active-status)', (done) => {
+			updatePermission('edit-other-user-active-status', ['admin']).then(() => {
+				request.post(api('users.setActiveStatus'))
+					.set(userCredentials)
+					.send({
+						activeStatus: false,
+						userId: user._id,
+					})
+					.expect('Content-Type', 'application/json')
+					.expect(403)
+					.expect((res) => {
+						expect(res.body).to.have.property('success', false);
+					})
+					.end(done);
 			});
 		});
 	});
